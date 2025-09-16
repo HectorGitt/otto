@@ -1,148 +1,154 @@
-# Otto - OpenAI Voice Agent for PC Control
+# Otto — Voice Agent for Windows PC Control
 
-Otto is a Python application that creates a voice assistant powered by OpenAI's API to control your PC using voice commands. It allows for continuous speech-to-speech interaction without requiring wake words.
+Otto is a realtime voice assistant that controls your Windows PC through natural conversation. It uses the OpenAI Agents SDK, a FastAPI server with WebSocket streaming, and desktop automation libraries (PyAutoGUI, keyboard, and pywinctl for window management).
+
+The web UI (dark theme) shows conversation, an event stream, and tool actions side-by-side.
 
 ## Features
 
-- **Voice Control**: Continuous speech-to-speech interaction
-- **PC Control**:
-  - Open applications
-  - Click at specific screen positions
-  - Type text using the keyboard
-  - Press keyboard keys and combinations
-  - Get screen information
+-   Realtime speech-to-speech interaction (no wake word required)
+-   Safe PC control with confirmations and step-by-step narration
+-   Screen understanding loop: capture → describe → confirm → act → verify
+-   Desktop actions: open apps, click, type, press keys, get screen info
+-   Advanced window management via pywinctl (activate, move, resize, hide/show, always-on-top, etc.)
+-   Modern web UI with chat, event stream, and tools panels
 
-## Implementation Options
+## Project layout
 
-This repository contains two implementations:
+-   `app/agent.py` — Realtime agent configuration and instructions
+-   `app/server.py` — FastAPI server + WebSocket; serves the UI
+-   `app/pc_tools.py` — Tool implementations (PyAutoGUI, keyboard, pywinctl)
+-   `app/static/index.html` — Web UI (chat, event stream, tools)
+-   `app/static/app.js` — Client for realtime connection and UI rendering
 
-1. **Custom WebSocket Implementation** (`otto_agent.py`): A custom implementation using OpenAI's WebSocket API directly.
-2. **OpenAI Agents SDK Implementation** (`otto_agent_sdk.py`): A cleaner implementation using the official OpenAI Agents SDK.
+## Requirements
 
-The SDK implementation is recommended for new projects as it provides a more streamlined approach.
+-   Windows 10/11
+-   Python 3.10+
+-   OpenAI API key
+-   Microphone and speakers
 
-## Setup
+## Setup (PowerShell)
 
-### Prerequisites
+```powershell
+# From repo root
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 
-- Python 3.8 or higher
-- OpenAI API key
-- Microphone and speakers
+# Install dependencies (if requirements.txt exists)
+pip install -r requirements.txt  # optional
 
-### Installation
+# Minimal manual install (if the line above fails)
+pip install openai-agents fastapi uvicorn websockets python-dotenv pyautogui keyboard pillow opencv-python pywinctl
 
-1. Clone or download this repository
-2. Create a virtual environment:
-   ```
-   python -m venv .venv
-   .venv\Scripts\activate
-   ```
-3. Install the required packages:
-   ```
-   pip install -r requirements.txt
-   ```
-   
-   If you're using the OpenAI Agents SDK implementation, make sure to install these additional packages:
-   ```
-   pip install openai-agents websockets
-   ```
-
-4. Create a `.env` file in the project directory with your OpenAI API key:
-   ```
-   OPENAI_API_KEY=your_api_key_here
-   ```
-
-## Usage
-
-### Using the OpenAI Agents SDK Implementation (Recommended)
-
-Run the application:
-
-```
-python otto_agent_sdk.py
+# Set your API key for this session
+$env:OPENAI_API_KEY = "sk-..."
 ```
 
-### Using the Custom WebSocket Implementation
+Create a `.env` file (optional):
 
-Run the application:
-
-```
-python otto_agent.py
+```env
+OPENAI_API_KEY=sk-...
 ```
 
-### Testing
+## Run
 
-For a simple test of the SDK implementation without PC control features:
+Start the server from the repo root:
 
+```powershell
+python -m app.server
+# or
+python app\server.py
 ```
-python test_otto_sdk.py
-```
 
-## Microphone Configuration
+Open the UI:
 
-The application requires a properly configured microphone to work. The updated SDK implementation now includes microphone testing capabilities:
+-   http://localhost:8000
 
-1. When you start the application, it will:
-   - List all available audio devices
-   - Test your microphone by recording for 3 seconds
-   - Show a warning if no audio is detected
+Click Connect in the UI to start the realtime session.
 
-2. If your microphone isn't working:
-   - Check if the correct microphone is selected as your default input device in Windows
-   - Make sure your microphone isn't muted
-   - Ensure your microphone has the necessary permissions
-   - Check the audio levels in your system settings
+## Using Otto
 
-3. To manually test your microphone:
-   - Run `python test_otto_sdk.py` which now includes a microphone test
-   - Speak during the 3-second test to verify audio detection
+Otto describes every step and asks before important actions. Typical flow:
 
-## Example Commands
+1. “I’ll capture the screen to see context.”
+2. “Here’s what I see…”
+3. “Plan: click X, then type Y. Proceed?”
+4. Executes step-by-step with verification screenshots.
 
-- "Open Chrome"
-- "Click on the File menu"
-- "Type hello world"
-- "Press Control plus S to save"
-- "What's the resolution of my screen?"
+### Example voice commands
 
-## Safety Features
+-   “Open Chrome”
+-   “Click the Start button”
+-   “Type hello world”
+-   “Press Control S”
+-   “What’s my screen resolution?”
+-   “Switch to Notepad and make it full screen”
+-   “Move the browser to the left and resize to 800 by 600”
 
-- PyAutoGUI failsafe: Move your mouse to the top-left corner of the screen to abort any automated actions
-- 0.5-second pause between PyAutoGUI commands for safety
+## Tools overview
+
+Core PC control:
+
+-   `open_application(app_name)`
+-   `click_at_position(x, y, element?)`
+-   `type_text(text)`
+-   `press_key(key_or_combo)`
+-   `get_screen_info()`
+-   `capture_screen(region?, description?)`
+
+Recovery/self-correction:
+
+-   `undo_last_action()`
+-   `try_alternate_action(action_type, original_params, alternate_params)`
+-   `navigate_to_previous_state(method)`
+-   `retry_with_delay(action_type, params, delay_seconds)`
+
+Window management (pywinctl):
+
+-   Info/find: `list_windows()`, `get_active_window()`, `find_windows_by_title(pattern)`, `get_all_app_names()`, `get_apps_with_name(app)`
+-   Focus/state: `activate_window(pattern)`, `minimize_window(pattern)`, `maximize_window(pattern)`, `restore_window(pattern)`, `close_window(pattern)`
+-   Position/size: `move_window(pattern, x, y)`, `resize_window(pattern, w, h)`
+-   Visibility/pinning: `hide_window(pattern)`, `show_window(pattern)`, `set_window_always_on_top(pattern, bool)`
+-   Diagnostics: `get_window_details(pattern)`, `get_windows_at_position(x, y)`
+
+All window operations include before/after screenshots and friendly narration.
+
+## UI notes
+
+-   Conversation (left) remains primary; event stream and tools are constrained so they don’t cover chat history.
+-   Status indicators show connection state and microphone status.
+
+## Safety
+
+-   PyAutoGUI failsafe enabled: move mouse to the top-left corner to abort.
+-   Small pauses are added between actions for stability.
+-   Otto asks for confirmation before impactful actions and multi-step plans.
 
 ## Troubleshooting
 
-### Common Issues
+1. Server won’t start
 
-1. **Missing Dependencies**:
-   - For the SDK implementation, make sure you have `openai-agents` and `websockets` installed:
-     ```
-     pip install openai-agents websockets
-     ```
+    - Ensure the virtual environment is activated.
+    - Verify dependencies are installed (see Setup).
+    - Try running from repo root: `python -m app.server`.
 
-2. **API Key Issues**:
-   - Ensure your OpenAI API key is valid and has access to the required models
-   - The API key should have access to both the Assistants API and the Audio API
+2. UI doesn’t load at http://localhost:8000
 
-3. **Configuration Issues**:
-   - If you get an error about invalid modalities, make sure to only use `["audio"]` for the modalities setting, not `["text", "audio"]`. The OpenAI Agents SDK currently only supports one modality at a time.
+    - Check server logs for errors.
+    - Ensure static files are served from `app/static` (configured in `app/server.py`).
 
-4. **Connection Issues**:
-   - Check your internet connection
-   - Ensure your firewall isn't blocking the WebSocket connections
-   - The OpenAI Audio API endpoints might experience occasional outages
+3. Import errors
 
-5. **Microphone/Speaker Issues**:
-   - Make sure your default microphone and speakers are working properly
-   - Test them with another application before running Otto
+    - Code imports use the `app.` package (e.g., `from app.pc_tools import ...`).
 
-### Error Logs
+4. Automation not behaving
 
-If you encounter errors, check the log output in the terminal. The application logs detailed information about:
-- Connection attempts
-- Audio processing
-- Tool executions
-- Error messages
+    - Some apps require focus; use window tools to activate first.
+    - Try `retry_with_delay` or `undo_last_action` if timing is off.
+
+5. Permissions (Windows)
+    - pywinctl/pyautogui may require standard desktop session (not elevated/UAC prompts).
 
 ## License
 
